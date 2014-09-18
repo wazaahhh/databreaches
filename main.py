@@ -41,8 +41,8 @@ def pushEvents():
 def retrieveEvent(incidentNumber,overwrite=False):
 
     root_url = "http://datalossdb.org/incidents/" 
-    username="wazaahhh"
-    password=";databreaches_"
+    credentials = json.load(open("/home/ubuntu/passwd/datalossdb.json",'rb'))
+    
     
     #if os.path.exists("%s%s.html" %(outdir,incident_number)):
     #    print incident_number, "Already downloaded"
@@ -52,7 +52,7 @@ def retrieveEvent(incidentNumber,overwrite=False):
 
     print url
 
-    r = requests.get(url, auth=(username, password))
+    r = requests.get(url, auth=(credentials['username'], credentials['password']))
     #print r.status_code
     
     html = r.text
@@ -233,6 +233,8 @@ def parseAllEventsToJson(store = True):
                 
     return J
     
+
+
 
 
 
