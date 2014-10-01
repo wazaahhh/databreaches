@@ -43,6 +43,31 @@ def loadInternetUsers():
     return {'date' : date[c],'users' : users[c]}
 
 
+def loadFacebookUsers():
+    
+    key = bucket.get_key("json/facebookUsers.csv")
+    data = key.get_contents_as_string()
+
+
+    date = []
+    users = []
+    
+    for line in data.splitlines():
+        l = line.split(',')
+        date.append(l[0])
+        users.append(l[1])
+
+    users = np.array(map(int,users))
+    date = [time.mktime(datetime.strptime(x,"%d/%m/%Y").timetuple()) for x in date]
+    date =  np.array(date)/3600./24
+    t2000 = time.mktime(datetime.strptime("2000-01-01",'%Y-%m-%d').timetuple())/3600/24
+    date = date - t2000
+
+    c = date > 0
+    
+    return {'date' : date[c],'users' : users[c]}
+
+
 def loadBreachData():
     ''' Load json from S3'''
     bucketName = "databreaches"
@@ -66,6 +91,14 @@ def loadBreachData():
     for i,ix in enumerate(incorrectDates):
         df.date[df.date==ix] = correctedDates[i]    
      
+    '''correct specific events'''
+
+    incorrectIds = ['3782','9235'] 
+    correctedDates = ['2011-05-27','2013-03-04']
+    
+    for i,ix in enumerate(incorrectIds):
+        df.date[df.id == ix] = correctedDates[i]
+    
     '''remove all events for which no loss was recorded''' 
     df = df[df.records>0]
         
@@ -94,15 +127,27 @@ def loadBreachData():
     
     df['logLoss'] = np.log10(list(df['records'].values))
     cumLoss =  df['records'].cumsum()
-    df['cumLoss'] = cumLoss
+    df['cumLoss'] = map(int,cumLoss)
     
-    df.index=range(len(df))
+    df.index=np.arange(len(df))
     df['cumEvents'] = df.index + 1
 
+    df.records = map(int,df.records)
+    df.id = map(int,df.id)
 
+    df['submissionLag'] = submitDelay(df)
+    
     return df
 
 
+def submitDelay(dataframe):
+    '''Compute timelag between event occurrence and submission on datalossdb'''
+    B = binning(np.array(map(int,dataframe['id'].values)),np.array(map(int,dataframe['datestamp'].values)),150,confinter=0.01)
+    interpolation = np.interp(np.array(map(int,dataframe['id'].values)),B[0],B[-2])
+    dt = np.array(interpolation) - np.array(map(int,dataframe.datestamp.values))
+    dt = map(int,np.round(dt))
+    return dt
+    
 
 def linGressFit(x,y,typFit='linlin',plot=False):
     
@@ -122,7 +167,7 @@ def linGressFit(x,y,typFit='linlin',plot=False):
     if plot:
         pl.plot(x,y)
         pl.plot(x,x*fit[0]+fit[1],'k-')
-        
+        pl.text(min(x)*1.03,min(y),"slope=%.2f (R=%.2f,p=%.2f)"%(fit[0],fit[2],fit[3]))
     return fit
 
 
