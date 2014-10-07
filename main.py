@@ -126,9 +126,19 @@ def retrieveLatestEvents(goback = 0,storeToJson=True):
               
         print "done"
     
+    
+def extractDate(dateType,html):
+    try:
+        date = re.findall("<b>(\d\d\d\d-\d\d-\d\d)|()</b></td><td>%s</td>"%dateType,html)[0]
+        if date == ('', ''):
+            date = "Date Removed"
+    except:
+        date = -1  
+    
+    return date      
+
 
 def parseEventHtml(incidentNumber):
-    
     
     key = bucket.get_key("html/%s.html"%incidentNumber)
         
@@ -152,34 +162,117 @@ def parseEventHtml(incidentNumber):
     
     Records = int(re.sub(",","",Records.__str__()))
     
+    IncidentOccurred = extractDate('IncidentOccurred',html)
+    IncidentDiscovered = extractDate('IncidentDiscoveredByOrganization',html)
+    IncidentReported = extractDate('OrganizationReportsIncident',html)
+    
+    #try:
+    #    Incident_Date= re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>IncidentOccurred</td>",html)[0]
+    #except:
+    #    Incident_Date = -1
+        
+    
+    #try:
+    #    Incident_Reported = re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>OrganizationReportsIncident</td>",html)[0]
+    #except:
+    #    Incident_Reported = -1        
+    
+    
     try:
-        Incident_Date= re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>IncidentOccurred</td>",html)[0]
+        Address = re.findall("<b>Address:(.*?)</b>",html)[0]
     except:
-        Incident_Date = -1
+        Address = -1
+    
+    try:
+        BreachType = re.findall("BreachType</th><td>(.*?)</td>",html)[0]
+    except:
+        BreachType = -1
+        
         
     try:
-        Incident_Discovered = re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>IncidentDiscoveredByOrganization</td>",html)[0]
+        str = re.findall("RecordTypes</th><td>(.*?)</td>",html)[0]
+        RecordTypes = re.findall('">([A-Z]{3})</a>',str)
     except:
-        Incident_Discovered = -1        
+        RecordTypes = -1
+    
+    try:
+        DataFamily = re.findall("DataFamily</th><td>(.*?)</td>",html)[0]
+    except:
+        DataFamily = -1
+    
+    try:
+        Source = re.findall("Source</th><td>(.*?)</td>",html)[0]
+    except:
+        Source = -1
+    
+    try:
+        Organization = re.findall("Organization</th><td>.*?>(.*?)</a></td>",html)[0]
+    except:
+        Organization = -1
+    
+    
+    try: 
+        str = re.findall("OtherAffected/InvolvedOrganizations</th><td>(.*?)</td>",html)[0]
+        OtherAffected = re.findall(">(.*?)</a>",str)[0]
+    except:
+        OtherAffected = -1
+    
+    try:
+        LawSuit = re.findall("Lawsuit\?</th><td>(.*?)</td>",html)[0]
+    except:
+        LawSuit = -1
+    
+    try:
+        DataRecovered = re.findall("DataRecovered\?</th><td>(.*?)</td>",html)[0]
+    except:
+        DataRecovered = -1
+    
+    try:
+        Arrest = re.findall("Arrest\?</th><td>(.*?)</td>",html)[0]
+    except:
+        Arrest = -1
+        
+    try:
+        SubmittedBy = re.findall("SubmittedBy:</th><td>(.*?)</td>",html)[0]
+    except:
+        SubmittedBy = -1    
 
     try:
-        Incident_Reported = re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>OrganizationReportsIncident</td>",html)[0]
+        References = re.findall('<listyle=""><ahref="(.*?)"popup',html)
     except:
-        Incident_Reported = -1        
+        References = -1
+    
      
     if re.findall("FRINGE",html):
         fringe = 1
     else:
         fringe = 0
+          
+    #RetrieveDate =  datetime.strptime(key.last_modified, '%a, %d %b %Y %H:%M:%S GMT').strftime('%Y-%m-%d')
     
-        
-    Retrieve_Date =  datetime.strptime(key.last_modified, '%a, %d %b %Y %H:%M:%S GMT').strftime('%Y-%m-%d')
+    #if RetrieveDate == "2014-02-09" :
+    #    RetrieveDate = -1
     
-    if Retrieve_Date == "2014-02-09" :
-        Retrieve_Date = -1
-    
-    return {'id' : Incident_ID, 'records' : Records, 'date' : Incident_Date, 'discovered' : Incident_Discovered, 'reported' : Incident_Reported, 'LatestRetrievedFromDataloss' : Retrieve_Date,'fringe': fringe}
-
+    dic = {'Id' : Incident_ID, 
+           'Records' : Records, 
+           'IncidentOccurred' : IncidentOccurred, 
+           'IncidentDiscovered' : IncidentDiscovered, 
+           'IncidentReported' : IncidentReported,
+           'Address' : Address,
+           'BreachType' : BreachType,
+           'RecordTypes' : RecordTypes,
+           'DataFamily' : DataFamily,
+           'Source' : Source,
+           'Organization' : Organization,
+           'OtherAffected' : OtherAffected,
+           'LawSuit' : LawSuit,
+           'DataRecovered' : DataRecovered,
+           'Arrest' : Arrest,
+           'SubmittedBy' : SubmittedBy,
+           'References' : References,
+           'Fringe': fringe}
+  
+    return dic
 
 def updateFringeIncidents(updateJson=True):
 
@@ -228,7 +321,7 @@ def parseAllEventsToJson(store = True):
     if store:
         J = json.dumps(J)
         now = datetime.now().strftime("%Y-%m-%d")
-        key = bucket.new_key("json/data_%s.json"%now)
+        key = bucket.new_key("json/data%s.json"%now)
         key.set_contents_from_string(J)
                 
     return J
