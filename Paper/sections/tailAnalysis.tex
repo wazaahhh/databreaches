@@ -1,0 +1,31 @@
+\section*{Distribution}
+
+In earthquake, assumption that there is limit beyond which no earthquake is observed, vs ``soft" truncation
+
+in earthquake, earthquakes occurrence and magnitudes can be related to the structure and dynamics of the earth crust. For data breaches, it is a function of user base size and data quality/value, IT security, which determine the incentives for cyber criminals to spend time, money and expertise resources on attacks. Unfortunately, this very function is unknown, but we know that a company cannot suffer a loss larger than the amount of its user data assets.
+
+Figure \ref{distribution} shows a distribution, which exhibits a power law distribution truncated for both small and large events. The lower cutoff can be attributed to the incapacity to record small events {\bf (see SI for more details on how this threshold has lowered as more events could be recorded and reported)}. As time passes, the upper threshold gets more pronounced, and quick visual estimation shows that $S_max \approx 2~10^8$. We shall refine this estimation by combining the GEV and GPD theorems underlying the Extreme Value Theory \cite{}.
+
+\subsection*{Method Combining GEV and GPD}
+Extreme Value Theory (EVT) studies the limiting distribution of maxima of identically independently distributed (iid) random variables (rv) as the sample size tends to infinity. Two main limit theorems constitute the basis for the application of EVT: (i) the main limit theorem of EVT (proved by Frechet \cite{} for Pareto-type limit distribution and by Fischer and Tippet \cite{} for Weibull and Gumbel distributions), leading to the Generalized Extreme Value (GEV) theory and (ii) the theorem by Gnedenko-Pickands-Balkema-Haan leading to the Generalized Pareto Distribution (GPD).
+
+{\bf Tell shortly what GEV and GPD measure, then move details to SI}
+
+\paragraph{Duality between the two main theorems of extreme value theory: }These two limit theorems show that information on the distribution of extreme events can be gathered in two ways: (i) by measuring the maximum of a sample whose size $n$ goes to infinity, or (ii) by recording the excess function $F_H(x)$ of that sample when increasing the threshold $H$ to its upper limit $x_F$.
+
+\subsection*{Method}
+All the ``trick" consists in evaluating the parameters of GEV and GPD for the ``right" time intervals $T$ and the right amplitude $H$ for which the limit FFT and GPBH theorems are (approximately) valid. We shall therefore calibrate the GEV and GPD models for resp. a variety of intervals and amplitudes. Additionally, we shall perform proper bootstrapping to ensure robustness (e.g., select intervals randomly for GEV? $\rightarrow$ check method Pisarenko and Sornette).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
