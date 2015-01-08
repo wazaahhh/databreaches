@@ -48,22 +48,28 @@ def retrieveEvent(incidentNumber,overwrite=False):
     #    print incident_number, "Already downloaded"
     #    continue
 
-    url = root_url+str(incidentNumber)+".html"
+    key = bucket.get_key("%s/%s.html"%(htmlFolder,incidentNumber))
 
-    print url
-
-    r = requests.get(url, auth=(credentials['username'], credentials['password']))
-    #print r.status_code
-    
-    html = r.text
-    html = html.encode('utf-8')
-
-    if len(html) == 14052:
-        print "404 not found"
+    if key and overwrite==False:
+        print "html for incident id = %s already downloaded"%incidentNumber
+        pass
     else:
-        print "storing incident number %s (length html: %s)"%(incidentNumber,len(html))
-        key = bucket.new_key("html/%s.html"%incidentNumber)
-        key.set_contents_from_string(html)
+        url = root_url+str(incidentNumber)+".html"
+    
+        print url
+    
+        r = requests.get(url, auth=(credentials['username'], credentials['password']))
+        #print r.status_code
+        
+        html = r.text
+        html = html.encode('utf-8')
+    
+        if len(html) == 14052:
+            print "404 not found"
+        else:
+            print "storing incident number %s (length html: %s)"%(incidentNumber,len(html))
+            key = bucket.new_key("%s/%s.html"%(htmlFolder,incidentNumber))
+            key.set_contents_from_string(html)
     
 
 def checkLatestIncident():
@@ -78,32 +84,32 @@ def checkLatestIncident():
     
     return latestIncident
 
-def checkLatestStoredIncident():
+def checkLatestStoredIncident(minId=-1):
     global StoredKeys
     
     try:
         StoredKeys
     except:
         StoredKeys= []
-        keys = bucket.list("html")
+        keys = bucket.list("%s/"%htmlFolder)
 
         for k in keys:
-            StoredKeys.append(int(re.findall("html/(\d*?)\.html",k.name)[0]))
+            StoredKeys.append(int(re.findall("%s/(\d*?)\.html"%htmlFolder,k.name)[0]))
     
     return np.max(StoredKeys)
 
  
-def retrieveLatestEvents(goback = 0,storeToJson=True):   
+def retrieveLatestEvents(goback = 0,overwriteHtml=False,storeToJson=True):   
 
     
-    if storeToJson:
-        '''load latest Json'''
-        key = bucket.get_key("json/data.json")
-        J = key.get_contents_as_string()
-        J = json.loads(J)
+    '''load latest Json'''
+    key = bucket.get_key("json/data.json")
+    J = json.loads(key.get_contents_as_string())
 
     latestStoredKey = checkLatestStoredIncident()-goback
     latestIncident = checkLatestIncident()
+    
+    print latestStoredKey,latestIncident
     
     if latestIncident <= latestStoredKey:
         print "up to date"
@@ -112,24 +118,26 @@ def retrieveLatestEvents(goback = 0,storeToJson=True):
         incidentsRange = np.arange(latestStoredKey,latestIncident)
 
         for i in incidentsRange:
-            retrieveEvent(i,overwrite=True)
+            retrieveEvent(i,overwrite=overwriteHtml)
             
-            if storeToJson:
-                dicEvent = parseEventHtml(i)
-                J[i] = dicEvent
+            dicEvent = parseEventHtml(i)
+            J[str(i)] = dicEvent
         
         if storeToJson:
-            J = json.dumps(J)
+            Json = json.dumps(J)
+            now = datetime.now().strftime("%Y%m%d%H%M%S")
+            key = bucket.new_key("json/data%s.json"%now)
+            key.set_contents_from_string(Json)
             key = bucket.new_key("json/data.json")
-            key.set_contents_from_string(J)
-            return J
-              
+            key.set_contents_from_string(Json)
+
         print "done"
+        return J
     
     
 def extractDate(dateType,html):
     try:
-        date = re.findall("<b>(\d\d\d\d-\d\d-\d\d)|()</b></td><td>%s</td>"%dateType,html)[0]
+        date = re.findall("<b>(\d\d\d\d-\d\d-\d\d)</b></td><td>%s</td>"%dateType,html)[0]
         if date == ('', ''):
             date = "Date Removed"
     except:
@@ -140,13 +148,21 @@ def extractDate(dateType,html):
 
 def parseEventHtml(incidentNumber):
     
-    key = bucket.get_key("html/%s.html"%incidentNumber)
+    key = bucket.get_key("%s/%s.html"%(htmlFolder,incidentNumber))
         
     if key == None:
         print "no event with id %s found stored on S3"%incidentNumber
         return {}
     
-    html= re.sub("[\s\n\t]","",key.get_contents_as_string())
+    html = key.get_contents_as_string()
+    
+    try:
+        html2 = re.sub("[\n\t]","",html)
+        summary = re.findall('SUMMARY.*?"2">(.*?)</td>',html2)[0]
+    except:
+        summary = -1
+    
+    html= re.sub("[\s\n\t]","",html)
     try:
         Incident_ID = re.findall("</span>ShowingIncident(\d*?)</h1>",html)[0]
 
@@ -155,12 +171,26 @@ def parseEventHtml(incidentNumber):
 
     try:
         Records = re.findall("Records</th><td>(.*?)</td>",html)[0]
+        Records = int(re.sub(",","",Records.__str__()))
         if Records == "Unknown":
             Records = -1
     except:
         Records = -1
     
-    Records = int(re.sub(",","",Records.__str__()))
+    if Records == -1:
+        try:
+            t2 = re.sub(",","",summary)
+            Records = re.findall('\s(\d.*?)\s',t2)[0]
+            #Records = re.sub(',','',Records)
+        except:
+            Records = -1
+    
+    
+    #try:
+    #    Records = int(re.sub(",","",Records.__str__()))
+    #except:
+    #    Records = -1
+        #return html
     
     IncidentOccurred = extractDate('IncidentOccurred',html)
     IncidentDiscovered = extractDate('IncidentDiscoveredByOrganization',html)
@@ -210,6 +240,11 @@ def parseEventHtml(incidentNumber):
     except:
         Organization = -1
     
+    if Organization == -1:
+        try:
+            Organization = re.findall("title>Incident:(.*?)-",html)[0]
+        except:
+            Organization = -1
     
     try: 
         str = re.findall("OtherAffected/InvolvedOrganizations</th><td>(.*?)</td>",html)[0]
@@ -270,9 +305,16 @@ def parseEventHtml(incidentNumber):
            'Arrest' : Arrest,
            'SubmittedBy' : SubmittedBy,
            'References' : References,
-           'Fringe': fringe}
+           'Fringe' : fringe,
+           'Summary' : summary}
   
     return dic
+
+#def parseEventsFromId(minId,maxId = -1):
+    
+       
+    
+    
 
 def updateFringeIncidents(updateJson=True):
 
@@ -320,15 +362,13 @@ def parseAllEventsToJson(store = True):
             
     if store:
         J = json.dumps(J)
-        now = datetime.now().strftime("%Y-%m-%d")
+        now = datetime.now().strftime("%Y%m%d%H%M%S")
         key = bucket.new_key("json/data%s.json"%now)
         key.set_contents_from_string(J)
-                
+        key = bucket.new_key("json/data.json")
+        key.set_contents_from_string(J)        
     return J
     
-
-
-
 
 
 if __name__ == '__main__':
@@ -336,5 +376,8 @@ if __name__ == '__main__':
 
     global bucket
     bucket = S3connectBucket("databreaches")
+    
+    global htmlFolder
+    htmlFolder = "html2"
     
     
